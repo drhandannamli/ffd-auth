@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src https://zpwpeshqnxspmlscdotw.supabase.co; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'">
+  <title>FFD · Reset password</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{--purple:#4B3F72;--lilac:#C8B6E2;--text:#1A0D28;--muted:#6b6472;--ok:#065f46;--bad:#991b1b}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#f2edf7,#fbf0f2);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text)}
+    .card{width:min(100%,420px);background:#fff;border-radius:20px;padding:34px;box-shadow:0 12px 42px rgba(75,63,114,.16)}
+    .brand{text-align:center;color:var(--purple);font-family:Georgia,serif;font-size:23px}.sub{text-align:center;color:#876f9e;font-size:12px;margin:5px 0 28px}
+    h1{font-size:23px;margin:0 0 10px}p{color:var(--muted);font-size:14px;line-height:1.5;margin:0 0 20px}
+    label{display:block;font-size:13px;font-weight:650;margin:16px 0 6px}input{width:100%;padding:12px 13px;border:1px solid #d9d2df;border-radius:10px;font-size:16px}input:focus{outline:2px solid var(--lilac);border-color:var(--purple)}
+    button{width:100%;margin-top:20px;padding:13px;border:0;border-radius:10px;background:var(--purple);color:#fff;font-weight:700;font-size:15px;cursor:pointer}button:disabled{opacity:.6;cursor:wait}
+    .msg{display:none;border-radius:9px;padding:11px 13px;margin:14px 0;font-size:13px;line-height:1.45}.msg.bad{display:block;background:#fef2f2;color:var(--bad)}.hidden{display:none}.fine{font-size:12px;color:var(--muted);margin-top:12px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">Fertility Friendly Doctor</div>
+    <div class="sub">Secure account recovery</div>
+    <section id="loading"><h1>Checking your link…</h1><p>Please wait while we verify the password recovery link.</p></section>
+    <section id="resetForm" class="hidden"><h1>Create a new password</h1><p>Choose a unique password that you do not use for another account.</p><div id="message" class="msg"></div><form id="passwordForm"><label for="newPassword">New password</label><input id="newPassword" type="password" autocomplete="new-password" minlength="12" required><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password" minlength="12" required><div class="fine">Use at least 12 characters, including uppercase, lowercase and a number.</div><button id="saveButton" type="submit">Save new password</button></form></section>
+    <section id="invalid" class="hidden"><h1>Link unavailable</h1><p>This link is invalid or has expired. Return to the FFD sign-in screen and request a new one.</p></section>
+    <section id="success" class="hidden"><h1>Password updated</h1><p>Your new password is ready. You can close this page and sign in to FFD.</p></section>
+  </main>
+  <script>
+    const SUPABASE_URL='https://zpwpeshqnxspmlscdotw.supabase.co';
+    const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpwd3Blc2hxbnhzcG1sc2Nkb3R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk5OTMsImV4cCI6MjA5MjI3NTk5M30.n9tAd057OFQW2ZFSMs-drSnLqaqTZMWsK6cBZ1EK33g';
+    const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON);
+    const sections=['loading','resetForm','invalid','success'];
+    const show=id=>sections.forEach(name=>document.getElementById(name).classList.toggle('hidden',name!==id));
+    const hash=new URLSearchParams(location.hash.slice(1));
+    const query=new URLSearchParams(location.search);
+    const hasRecoveryMarker=hash.get('type')==='recovery'||query.get('type')==='recovery'||query.has('code');
+    let recoveryReady=false;
+    function enableRecovery(){recoveryReady=true;show('resetForm');}
+    sb.auth.onAuthStateChange((event,session)=>{if(event==='PASSWORD_RECOVERY'&&session)enableRecovery();});
+    (async()=>{const {data:{session},error}=await sb.auth.getSession();if(!error&&session&&hasRecoveryMarker)enableRecovery();else setTimeout(()=>{if(!recoveryReady)show('invalid');},1800);})();
+    document.getElementById('passwordForm').addEventListener('submit',async ev=>{
+      ev.preventDefault();
+      const message=document.getElementById('message');
+      const password=document.getElementById('newPassword').value;
+      const confirmation=document.getElementById('confirmPassword').value;
+      message.className='msg';
+      if(password.length<12||!/[a-z]/.test(password)||!/[A-Z]/.test(password)||!/\d/.test(password)){message.textContent='Use at least 12 characters with uppercase, lowercase and a number.';message.className='msg bad';return;}
+      if(password!==confirmation){message.textContent='The passwords do not match.';message.className='msg bad';return;}
+      const button=document.getElementById('saveButton');button.disabled=true;button.textContent='Saving…';
+      const {error}=await sb.auth.updateUser({password});
+      if(error){message.textContent='The password could not be updated. Request a new recovery link and try again.';message.className='msg bad';button.disabled=false;button.textContent='Save new password';return;}
+      await sb.auth.signOut();history.replaceState({},document.title,location.pathname);show('success');
+    });
+  </script>
+</body>
+</html>
